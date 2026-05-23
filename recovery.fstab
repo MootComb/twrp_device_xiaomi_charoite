@@ -1,0 +1,49 @@
+# TWRP fstab for Xiaomi/Redmi charoite, mt6789, A/B dynamic partitions
+# Generated from stock fstab.mt6789 and by-name layout.
+
+# Dynamic logical partitions
+/system             erofs    /dev/block/mapper/system          flags=display="System";logical;backup=1
+/system             ext4     /dev/block/mapper/system          flags=display="System";logical;backup=1
+/system_ext         erofs    /dev/block/mapper/system_ext      flags=display="System Ext";logical;backup=1
+/system_ext         ext4     /dev/block/mapper/system_ext      flags=display="System Ext";logical;backup=1
+/vendor             erofs    /dev/block/mapper/vendor          flags=display="Vendor";logical;backup=1
+/vendor             ext4     /dev/block/mapper/vendor          flags=display="Vendor";logical;backup=1
+/product            erofs    /dev/block/mapper/product         flags=display="Product";logical;backup=1
+/product            ext4     /dev/block/mapper/product         flags=display="Product";logical;backup=1
+/odm                erofs    /dev/block/mapper/odm             flags=display="ODM";logical;backup=1
+/odm                ext4     /dev/block/mapper/odm             flags=display="ODM";logical;backup=1
+/vendor_dlkm        erofs    /dev/block/mapper/vendor_dlkm     flags=display="Vendor DLKM";logical;backup=1
+/vendor_dlkm        ext4     /dev/block/mapper/vendor_dlkm     flags=display="Vendor DLKM";logical;backup=1
+/odm_dlkm           erofs    /dev/block/mapper/odm_dlkm        flags=display="ODM DLKM";logical;backup=1
+/odm_dlkm           ext4     /dev/block/mapper/odm_dlkm        flags=display="ODM DLKM";logical;backup=1
+/system_dlkm        erofs    /dev/block/mapper/system_dlkm     flags=display="System DLKM";logical;backup=1
+/system_dlkm        ext4     /dev/block/mapper/system_dlkm     flags=display="System DLKM";logical;backup=1
+/mi_ext             erofs    /dev/block/mapper/mi_ext          flags=display="Mi Ext";logical;backup=1
+/mi_ext             ext4     /dev/block/mapper/mi_ext          flags=display="Mi Ext";logical;backup=1
+
+# Data / metadata
+/data               f2fs     /dev/block/by-name/userdata       flags=display="Data";backup=1;fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized;metadata_encryption=aes-256-xts;keydirectory=/metadata/vold/metadata_encryption
+/metadata           ext4     /dev/block/by-name/metadata       flags=display="Metadata";backup=1;format=1
+/cache              ext4     /dev/block/by-name/rescue         flags=display="Cache";backup=1;wipeingui;format=1
+
+# Important physical partitions
+/boot               emmc     /dev/block/by-name/boot           flags=slotselect;display="Boot";backup=1;flashimg=1
+/vendor_boot        emmc     /dev/block/by-name/vendor_boot    flags=slotselect;display="Vendor Boot";backup=1;flashimg=1
+/init_boot          emmc     /dev/block/by-name/init_boot      flags=slotselect;display="Init Boot";backup=1;flashimg=1
+/dtbo               emmc     /dev/block/by-name/dtbo           flags=slotselect;display="DTBO";backup=1;flashimg=1
+/vbmeta             emmc     /dev/block/by-name/vbmeta         flags=slotselect;display="VBMeta";backup=1;flashimg=1
+/vbmeta_system      emmc     /dev/block/by-name/vbmeta_system  flags=slotselect;display="VBMeta System";backup=1;flashimg=1
+/vbmeta_vendor      emmc     /dev/block/by-name/vbmeta_vendor  flags=slotselect;display="VBMeta Vendor";backup=1;flashimg=1
+/logo               emmc     /dev/block/by-name/logo           flags=display="Logo";backup=1;flashimg=1
+
+# Persist / modem-related backups
+/persist            ext4     /dev/block/by-name/persist        flags=display="Persist";backup=1
+/protect1           ext4     /dev/block/by-name/protect1       flags=display="Protect1";backup=1
+/protect2           ext4     /dev/block/by-name/protect2       flags=display="Protect2";backup=1
+/nvdata             ext4     /dev/block/by-name/nvdata         flags=display="NVData";backup=1
+/nvcfg              ext4     /dev/block/by-name/nvcfg          flags=display="NVCfg";backup=1
+/nvram              emmc     /dev/block/by-name/nvram          flags=display="NVRAM";backup=1
+
+# Removable storage
+/external_sd        auto     /devices/platform/soc/11240000.mmc*       flags=display="Micro SD";storage;wipeingui;removable
+/usb-otg            auto     /devices/platform/soc/mt_usb*             flags=display="USB OTG";storage;wipeingui;removable
