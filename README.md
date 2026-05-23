@@ -1,6 +1,6 @@
-# TWRP device tree for Xiaomi/Redmi charoite
+# TWRP device tree for Xiaomi REDMI Note 15 Pro 4G (charoite)
 
-Initial bring-up tree generated from the provided stock package.
+# Version 0.1
 
 ## Detected device info
 
@@ -9,7 +9,6 @@ Initial bring-up tree generated from the provided stock package.
 - Model: `25100RA69G`
 - Market name: `REDMI Note 15 Pro`
 - Platform: `mt6789`
-- Android: `16`, SDK `36`
 - Build: `OS3.0.302.0.WPFMIXM`
 - A/B: yes
 - Dynamic partitions: yes
