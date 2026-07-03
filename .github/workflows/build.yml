@@ -159,10 +159,7 @@ jobs:
         retention-days: 30
 
     - name: Create Release
-      if: |
-        steps.build.outputs.build_success == true && 
-        github.event_name == push && 
-        (github.ref == refs/heads/main || github.ref == refs/heads/master)
+      if: steps.build.outputs.build_success == true
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v0.1.${{ github.run_number }}
