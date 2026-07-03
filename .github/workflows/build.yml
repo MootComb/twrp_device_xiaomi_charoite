@@ -77,10 +77,9 @@ jobs:
         fi
         git clone --depth=1 https://github.com/MootComb/${{ env.DEVICE_TREE }}.git ${{ env.DEVICE_PATH }}
 
-    - name: Fix all config files
+    - name: Fix BoardConfig.mk
       run: |
         cd ~/twrp
-        
         BOARD_CONFIG=${{ env.DEVICE_PATH }}/BoardConfig.mk
         if [ -f $BOARD_CONFIG ]; then
           sed -i 's/^PRODUCT_USE_DYNAMIC_PARTITIONS.*/# &/' $BOARD_CONFIG
@@ -90,6 +89,7 @@ jobs:
           sed -i 's/^BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT.*/# &/' $BOARD_CONFIG
           sed -i 's/^BOARD_SYSTEMSDK_VERSIONS.*/# &/' $BOARD_CONFIG
           sed -i 's/^PRODUCT_SHIPPING_API_LEVEL.*/# &/' $BOARD_CONFIG
+          sed -i 's/^BOARD_USES_RECOVERY_AS_BOOT.*/# &/' $BOARD_CONFIG
           echo TARGET_SUPPORTS_64_BIT_APPS := false >> $BOARD_CONFIG
           echo BOARD_INCLUDE_DTB_IN_BOOTIMG := true >> $BOARD_CONFIG
           echo BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true >> $BOARD_CONFIG
@@ -97,19 +97,26 @@ jobs:
           echo ALLOW_MISSING_DEPENDENCIES := true >> $BOARD_CONFIG
           echo AB_OTA_UPDATER := true >> $BOARD_CONFIG
           echo AB_OTA_PARTITIONS := boot vendor_boot system >> $BOARD_CONFIG
+          echo BOARD_USES_RECOVERY_AS_BOOT := false >> $BOARD_CONFIG
+          echo BOARD_USES_VENDOR_BOOT := true >> $BOARD_CONFIG
+          echo BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true >> $BOARD_CONFIG
         fi
-        
+
+    - name: Fix device.mk
+      run: |
+        cd ~/twrp
         DEVICE_MK=${{ env.DEVICE_PATH }}/device.mk
         if [ -f $DEVICE_MK ]; then
           sed -i 's/^PRODUCT_SHIPPING_API_LEVEL.*/# &/' $DEVICE_MK
         fi
-        
+
+    - name: Fix twrp_charoite.mk
+      run: |
+        cd ~/twrp
         TWRP_MK=${{ env.DEVICE_PATH }}/twrp_charoite.mk
         if [ -f $TWRP_MK ]; then
           sed -i 's/^PRODUCT_SHIPPING_API_LEVEL.*/# &/' $TWRP_MK
         fi
-        
-        echo Fixed all config files
 
     - name: Setup build environment
       run: |
@@ -117,7 +124,7 @@ jobs:
         source build/envsetup.sh
         lunch ${{ env.LUNCH_TARGET }} || true
 
-    - name: Build TWRP
+    - name: Build TWRP vendor_boot
       id: build
       run: |
         cd ~/twrp
@@ -208,13 +215,12 @@ jobs:
           - Dynamic Partitions
           - Boot Header v4
           - Platform: MediaTek mt6789
+          - Vendor Boot (correct for this device)
           
           Installation:
-          fastboot flash vendor_boot twrp_charoite_*.img
-          or
-          fastboot flash boot twrp_charoite_*.img
+          fastboot flash vendor_boot twrp_charoite_vendor_boot_*.img
           
-          Warning: Backup stock boot/vendor_boot before flashing!
+          Warning: Backup stock vendor_boot before flashing!
           
           SHA256: See attached .sha256 file
         files: |
@@ -231,6 +237,7 @@ jobs:
       run: |
         if [ ${{ steps.build.outputs.build_success }} == true ]; then
           echo Build completed successfully!
+          echo "Image type: ${{ steps.build.outputs.image_type }}"
         else
           echo Build failed!
           echo Check logs for details
