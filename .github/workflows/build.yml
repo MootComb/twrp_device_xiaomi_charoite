@@ -1,0 +1,197 @@
+name: Build TWRP for Xiaomi Redmi Note 15 Pro (charoite)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      twrp_branch:
+        description: 'TWRP branch to build'
+        required: true
+        default: 'twrp-12.1'
+        type: string
+      manifest_url:
+        description: 'Manifest URL'
+        required: true
+        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git'
+        type: string
+
+env:
+  MANIFEST_URL: ${{ github.event.inputs.manifest_url || 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git' }}
+  MANIFEST_BRANCH: ${{ github.event.inputs.twrp_branch || 'twrp-12.1' }}
+  DEVICE_TREE: twrp_device_xiaomi_charoite
+  DEVICE_PATH: device/xiaomi/charoite
+  LUNCH_TARGET: twrp_charoite-eng
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Check disk space
+      run: |
+        echo "Free disk space before build:"
+        df -h
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git-core gnupg flex bison build-essential zip curl \
+          zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 \
+          libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev \
+          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip \
+          fontconfig python3 python3-pip
+        sudo pip3 install pycryptodome
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Initialize TWRP source
+      run: |
+        mkdir -p ~/twrp
+        cd ~/twrp
+        repo init --depth=1 -u ${{ env.MANIFEST_URL }} -b ${{ env.MANIFEST_BRANCH }}
+
+    - name: Sync source code
+      run: |
+        cd ~/twrp
+        repo sync --force-sync --no-tags --no-clone-bundle --current-branch -j$(nproc --all)
+
+    - name: Clone device tree
+      run: |
+        cd ~/twrp
+        if [ -d "${{ env.DEVICE_PATH }}" ]; then
+          rm -rf ${{ env.DEVICE_PATH }}
+        fi
+        git clone --depth=1 https://github.com/MootComb/${{ env.DEVICE_TREE }}.git ${{ env.DEVICE_PATH }}
+
+    - name: Apply patches
+      run: |
+        cd ~/twrp
+        if [ -d "${{ env.DEVICE_PATH }}/patches" ]; then
+          echo "Applying patches..."
+          for patch in ${{ env.DEVICE_PATH }}/patches/*.patch; do
+            if [ -f "$patch" ]; then
+              echo "Applying $patch"
+              git -C ${{ env.DEVICE_PATH }} am "$patch" || true
+            fi
+          done
+        fi
+
+    - name: Setup build environment
+      run: |
+        cd ~/twrp
+        source build/envsetup.sh
+        lunch ${{ env.LUNCH_TARGET }}
+        echo "Build environment ready"
+
+    - name: Build TWRP
+      id: build
+      run: |
+        cd ~/twrp
+        source build/envsetup.sh
+        lunch ${{ env.LUNCH_TARGET }}
+        
+        echo "Starting build..."
+        if mka vendorbootimage -j$(nproc --all); then
+          echo "build_success=true" >> $GITHUB_OUTPUT
+          echo "image_type=vendorbootimage" >> $GITHUB_OUTPUT
+        else
+          echo "vendorbootimage failed, trying bootimage..."
+          if mka bootimage -j$(nproc --all); then
+            echo "build_success=true" >> $GITHUB_OUTPUT
+            echo "image_type=bootimage" >> $GITHUB_OUTPUT
+          else
+            echo "build_success=false" >> $GITHUB_OUTPUT
+            echo "Build failed!"
+            exit 1
+          fi
+        fi
+
+    - name: Find and rename recovery image
+      if: steps.build.outputs.build_success == 'true'
+      run: |
+        cd ~/twrp
+        IMAGE_TYPE="${{ steps.build.outputs.image_type }}"
+        
+        if [ "$IMAGE_TYPE" == "vendorbootimage" ]; then
+          IMAGE_PATH="out/target/product/charoite/vendor_boot.img"
+          OUTPUT_NAME="twrp_charoite_vendor_boot_$(date +%Y%m%d).img"
+        else
+          IMAGE_PATH="out/target/product/charoite/boot.img"
+          OUTPUT_NAME="twrp_charoite_boot_$(date +%Y%m%d).img"
+        fi
+        
+        if [ -f "$IMAGE_PATH" ]; then
+          cp "$IMAGE_PATH" "$OUTPUT_NAME"
+          echo "recovery_image=$OUTPUT_NAME" >> $GITHUB_OUTPUT
+          echo "Image found: $OUTPUT_NAME"
+          
+          ls -lh "$OUTPUT_NAME"
+          sha256sum "$OUTPUT_NAME" > "$OUTPUT_NAME.sha256"
+        else
+          echo "ERROR: Image not found!"
+          find out -name "*.img" -type f 2>/dev/null
+          exit 1
+        fi
+
+    - name: Create bundle archive
+      if: steps.build.outputs.build_success == 'true'
+      run: |
+        cd ~/twrp
+        IMAGE_NAME="${{ steps.build.outputs.recovery_image }}"
+        
+        mkdir -p twrp_bundle
+        if [ -f "$IMAGE_NAME" ]; then cp "$IMAGE_NAME" twrp_bundle/; fi
+        if [ -f "$IMAGE_NAME.sha256" ]; then cp "$IMAGE_NAME.sha256" twrp_bundle/; fi
+        
+        if [ -f "${{ env.DEVICE_PATH }}/recovery.fstab" ]; then
+          cp "${{ env.DEVICE_PATH }}/recovery.fstab" twrp_bundle/
+        fi
+        
+        if [ -f "build.log" ]; then cp "build.log" twrp_bundle/; fi
+        
+        tar -czf twrp_bundle.tar.gz twrp_bundle/
+        echo "bundle_archive=twrp_bundle.tar.gz" >> $GITHUB_OUTPUT
+
+    - name: Upload TWRP image
+      if: steps.build.outputs.build_success == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: twrp_charoite
+        path: |
+          ~/twrp/twrp_*.img
+          ~/twrp/twrp_*.img.sha256
+          ~/twrp/twrp_bundle.tar.gz
+        retention-days: 30
+
+    - name: Create Release
+      if: |
+        steps.build.outputs.build_success == 'true' && 
+        github.event_name == 'push' && 
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v0.1.${{ github.run_number }}
+        name: "TWRP for charoite - Build #${{ github.run_number }}"
+        body: |
+          ## TWRP for Xiaomi Redmi Note 15 Pro (charoite)
+          
+          **Build Date:** $(date +'%Y-%m-%d %H:%M UTC')
+          
+          **Features:**
+          - Virtual A/B support
+          - Dynamic Partitions
+          - Boot Header v4
+          - Platform: MediaTek mt6789
+          
+          **Installation:**
+          ```bash
+          fastboot flash vendor_boot twrp_charoite_*.img
+          # or
+          fastboot flash boot twrp_charoite_*.img
