@@ -83,17 +83,18 @@ jobs:
         BOARD_CONFIG=${{ env.DEVICE_PATH }}/BoardConfig.mk
         if [ -f $BOARD_CONFIG ]; then
           sed -i 's/^PRODUCT_USE_DYNAMIC_PARTITIONS.*/# &/' $BOARD_CONFIG
-          sed -i 's/^BOARD_SUPER_PARTITION_SIZE.*/# &/' $BOARD_CONFIG
           sed -i 's/^BOARD_SUPER_PARTITION_GROUPS.*/# &/' $BOARD_CONFIG
+          sed -i 's/^BOARD_SUPER_PARTITION_SIZE.*/# &/' $BOARD_CONFIG
+          echo TARGET_SUPPORTS_64_BIT_APPS := false >> $BOARD_CONFIG
           echo Fixed BoardConfig.mk
-          cat $BOARD_CONFIG | grep -E "PRODUCT_USE_DYNAMIC_PARTITIONS|BOARD_SUPER_PARTITION"
+          cat $BOARD_CONFIG | grep -E "PRODUCT_USE_DYNAMIC_PARTITIONS|BOARD_SUPER_PARTITION|TARGET_SUPPORTS_64_BIT_APPS"
         fi
 
     - name: Setup build environment
       run: |
         cd ~/twrp
         source build/envsetup.sh
-        lunch ${{ env.LUNCH_TARGET }}
+        lunch ${{ env.LUNCH_TARGET }} || true
 
     - name: Build TWRP
       id: build
@@ -118,7 +119,7 @@ jobs:
         fi
 
     - name: Find and rename recovery image
-      if: steps.build.outputs.build_success == true
+      if: steps.build.outputs.build_success == 'true'
       run: |
         cd ~/twrp
         IMAGE_TYPE=${{ steps.build.outputs.image_type }}
@@ -143,7 +144,7 @@ jobs:
         fi
 
     - name: Create bundle archive
-      if: steps.build.outputs.build_success == true
+      if: steps.build.outputs.build_success == 'true'
       run: |
         cd ~/twrp
         IMAGE_NAME=${{ steps.build.outputs.recovery_image }}
@@ -160,7 +161,7 @@ jobs:
         echo bundle_archive=twrp_bundle.tar.gz >> $GITHUB_OUTPUT
 
     - name: Upload TWRP image
-      if: steps.build.outputs.build_success == true
+      if: steps.build.outputs.build_success == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: twrp_charoite
@@ -171,7 +172,7 @@ jobs:
         retention-days: 30
 
     - name: Create Release
-      if: steps.build.outputs.build_success == true
+      if: steps.build.outputs.build_success == 'true'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v0.1.${{ github.run_number }}
