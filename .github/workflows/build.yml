@@ -77,6 +77,18 @@ jobs:
         fi
         git clone --depth=1 https://github.com/MootComb/${{ env.DEVICE_TREE }}.git ${{ env.DEVICE_PATH }}
 
+    - name: Fix BoardConfig.mk
+      run: |
+        cd ~/twrp
+        BOARD_CONFIG=${{ env.DEVICE_PATH }}/BoardConfig.mk
+        if [ -f $BOARD_CONFIG ]; then
+          sed -i 's/^PRODUCT_USE_DYNAMIC_PARTITIONS.*/# &/' $BOARD_CONFIG
+          sed -i 's/^BOARD_SUPER_PARTITION_SIZE.*/# &/' $BOARD_CONFIG
+          sed -i 's/^BOARD_SUPER_PARTITION_GROUPS.*/# &/' $BOARD_CONFIG
+          echo Fixed BoardConfig.mk
+          cat $BOARD_CONFIG | grep -E "PRODUCT_USE_DYNAMIC_PARTITIONS|BOARD_SUPER_PARTITION"
+        fi
+
     - name: Setup build environment
       run: |
         cd ~/twrp
