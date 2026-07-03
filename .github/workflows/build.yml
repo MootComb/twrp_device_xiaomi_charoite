@@ -8,14 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       twrp_branch:
-        description: 'TWRP branch to build'
+        description: TWRP branch to build
         required: true
-        default: 'twrp-12.1'
+        default: twrp-12.1
         type: string
       manifest_url:
-        description: 'Manifest URL'
+        description: Manifest URL
         required: true
-        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git'
+        default: https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git
         type: string
 
 env:
@@ -32,7 +32,7 @@ jobs:
     steps:
     - name: Check disk space
       run: |
-        echo "Free disk space before build:"
+        echo Free disk space before build:
         df -h
 
     - name: Install dependencies
@@ -46,10 +46,17 @@ jobs:
           fontconfig python3 python3-pip
         sudo pip3 install pycryptodome
 
+    - name: Install repo tool
+      run: |
+        mkdir -p ~/.bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+        chmod a+x ~/.bin/repo
+        echo $HOME/.bin >> $GITHUB_PATH
+
     - name: Configure Git
       run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
+        git config --global user.name GitHub Actions
+        git config --global user.email actions@github.com
 
     - name: Initialize TWRP source
       run: |
@@ -65,30 +72,16 @@ jobs:
     - name: Clone device tree
       run: |
         cd ~/twrp
-        if [ -d "${{ env.DEVICE_PATH }}" ]; then
+        if [ -d ${{ env.DEVICE_PATH }} ]; then
           rm -rf ${{ env.DEVICE_PATH }}
         fi
         git clone --depth=1 https://github.com/MootComb/${{ env.DEVICE_TREE }}.git ${{ env.DEVICE_PATH }}
-
-    - name: Apply patches
-      run: |
-        cd ~/twrp
-        if [ -d "${{ env.DEVICE_PATH }}/patches" ]; then
-          echo "Applying patches..."
-          for patch in ${{ env.DEVICE_PATH }}/patches/*.patch; do
-            if [ -f "$patch" ]; then
-              echo "Applying $patch"
-              git -C ${{ env.DEVICE_PATH }} am "$patch" || true
-            fi
-          done
-        fi
 
     - name: Setup build environment
       run: |
         cd ~/twrp
         source build/envsetup.sh
         lunch ${{ env.LUNCH_TARGET }}
-        echo "Build environment ready"
 
     - name: Build TWRP
       id: build
@@ -97,70 +90,65 @@ jobs:
         source build/envsetup.sh
         lunch ${{ env.LUNCH_TARGET }}
         
-        echo "Starting build..."
+        echo Starting build...
         if mka vendorbootimage -j$(nproc --all); then
-          echo "build_success=true" >> $GITHUB_OUTPUT
-          echo "image_type=vendorbootimage" >> $GITHUB_OUTPUT
+          echo build_success=true >> $GITHUB_OUTPUT
+          echo image_type=vendorbootimage >> $GITHUB_OUTPUT
         else
-          echo "vendorbootimage failed, trying bootimage..."
+          echo vendorbootimage failed, trying bootimage...
           if mka bootimage -j$(nproc --all); then
-            echo "build_success=true" >> $GITHUB_OUTPUT
-            echo "image_type=bootimage" >> $GITHUB_OUTPUT
+            echo build_success=true >> $GITHUB_OUTPUT
+            echo image_type=bootimage >> $GITHUB_OUTPUT
           else
-            echo "build_success=false" >> $GITHUB_OUTPUT
-            echo "Build failed!"
+            echo build_success=false >> $GITHUB_OUTPUT
             exit 1
           fi
         fi
 
     - name: Find and rename recovery image
-      if: steps.build.outputs.build_success == 'true'
+      if: steps.build.outputs.build_success == true
       run: |
         cd ~/twrp
-        IMAGE_TYPE="${{ steps.build.outputs.image_type }}"
+        IMAGE_TYPE=${{ steps.build.outputs.image_type }}
         
-        if [ "$IMAGE_TYPE" == "vendorbootimage" ]; then
-          IMAGE_PATH="out/target/product/charoite/vendor_boot.img"
-          OUTPUT_NAME="twrp_charoite_vendor_boot_$(date +%Y%m%d).img"
+        if [ $IMAGE_TYPE == vendorbootimage ]; then
+          IMAGE_PATH=out/target/product/charoite/vendor_boot.img
+          OUTPUT_NAME=twrp_charoite_vendor_boot_$(date +%Y%m%d).img
         else
-          IMAGE_PATH="out/target/product/charoite/boot.img"
-          OUTPUT_NAME="twrp_charoite_boot_$(date +%Y%m%d).img"
+          IMAGE_PATH=out/target/product/charoite/boot.img
+          OUTPUT_NAME=twrp_charoite_boot_$(date +%Y%m%d).img
         fi
         
-        if [ -f "$IMAGE_PATH" ]; then
-          cp "$IMAGE_PATH" "$OUTPUT_NAME"
-          echo "recovery_image=$OUTPUT_NAME" >> $GITHUB_OUTPUT
-          echo "Image found: $OUTPUT_NAME"
-          
-          ls -lh "$OUTPUT_NAME"
-          sha256sum "$OUTPUT_NAME" > "$OUTPUT_NAME.sha256"
+        if [ -f $IMAGE_PATH ]; then
+          cp $IMAGE_PATH $OUTPUT_NAME
+          echo recovery_image=$OUTPUT_NAME >> $GITHUB_OUTPUT
+          ls -lh $OUTPUT_NAME
+          sha256sum $OUTPUT_NAME > $OUTPUT_NAME.sha256
         else
-          echo "ERROR: Image not found!"
-          find out -name "*.img" -type f 2>/dev/null
+          echo ERROR: Image not found!
+          find out -name *.img -type f 2>/dev/null
           exit 1
         fi
 
     - name: Create bundle archive
-      if: steps.build.outputs.build_success == 'true'
+      if: steps.build.outputs.build_success == true
       run: |
         cd ~/twrp
-        IMAGE_NAME="${{ steps.build.outputs.recovery_image }}"
+        IMAGE_NAME=${{ steps.build.outputs.recovery_image }}
         
         mkdir -p twrp_bundle
-        if [ -f "$IMAGE_NAME" ]; then cp "$IMAGE_NAME" twrp_bundle/; fi
-        if [ -f "$IMAGE_NAME.sha256" ]; then cp "$IMAGE_NAME.sha256" twrp_bundle/; fi
+        if [ -f $IMAGE_NAME ]; then cp $IMAGE_NAME twrp_bundle/; fi
+        if [ -f $IMAGE_NAME.sha256 ]; then cp $IMAGE_NAME.sha256 twrp_bundle/; fi
         
-        if [ -f "${{ env.DEVICE_PATH }}/recovery.fstab" ]; then
-          cp "${{ env.DEVICE_PATH }}/recovery.fstab" twrp_bundle/
+        if [ -f ${{ env.DEVICE_PATH }}/recovery.fstab ]; then
+          cp ${{ env.DEVICE_PATH }}/recovery.fstab twrp_bundle/
         fi
         
-        if [ -f "build.log" ]; then cp "build.log" twrp_bundle/; fi
-        
         tar -czf twrp_bundle.tar.gz twrp_bundle/
-        echo "bundle_archive=twrp_bundle.tar.gz" >> $GITHUB_OUTPUT
+        echo bundle_archive=twrp_bundle.tar.gz >> $GITHUB_OUTPUT
 
     - name: Upload TWRP image
-      if: steps.build.outputs.build_success == 'true'
+      if: steps.build.outputs.build_success == true
       uses: actions/upload-artifact@v4
       with:
         name: twrp_charoite
@@ -172,26 +160,47 @@ jobs:
 
     - name: Create Release
       if: |
-        steps.build.outputs.build_success == 'true' && 
-        github.event_name == 'push' && 
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        steps.build.outputs.build_success == true && 
+        github.event_name == push && 
+        (github.ref == refs/heads/main || github.ref == refs/heads/master)
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v0.1.${{ github.run_number }}
-        name: "TWRP for charoite - Build #${{ github.run_number }}"
+        name: TWRP for charoite - Build #${{ github.run_number }}
         body: |
-          ## TWRP for Xiaomi Redmi Note 15 Pro (charoite)
+          TWRP for Xiaomi Redmi Note 15 Pro (charoite)
           
-          **Build Date:** $(date +'%Y-%m-%d %H:%M UTC')
+          Build Date: $(date +%Y-%m-%d %H:%M UTC)
           
-          **Features:**
+          Features:
           - Virtual A/B support
           - Dynamic Partitions
           - Boot Header v4
           - Platform: MediaTek mt6789
           
-          **Installation:**
-          ```bash
+          Installation:
           fastboot flash vendor_boot twrp_charoite_*.img
-          # or
+          or
           fastboot flash boot twrp_charoite_*.img
+          
+          Warning: Backup stock boot/vendor_boot before flashing!
+          
+          SHA256: See attached .sha256 file
+        files: |
+          ~/twrp/twrp_*.img
+          ~/twrp/twrp_*.img.sha256
+          ~/twrp/twrp_bundle.tar.gz
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build status
+      if: always()
+      run: |
+        if [ ${{ steps.build.outputs.build_success }} == true ]; then
+          echo Build completed successfully!
+        else
+          echo Build failed!
+          echo Check logs for details
+        fi
