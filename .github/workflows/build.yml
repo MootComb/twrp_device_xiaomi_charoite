@@ -77,9 +77,11 @@ jobs:
         fi
         git clone --depth=1 https://github.com/MootComb/${{ env.DEVICE_TREE }}.git ${{ env.DEVICE_PATH }}
 
-    - name: Fix BoardConfig.mk
+    - name: Fix all config files
       run: |
         cd ~/twrp
+        
+        # Fix BoardConfig.mk
         BOARD_CONFIG=${{ env.DEVICE_PATH }}/BoardConfig.mk
         if [ -f $BOARD_CONFIG ]; then
           sed -i 's/^PRODUCT_USE_DYNAMIC_PARTITIONS.*/# &/' $BOARD_CONFIG
@@ -94,9 +96,23 @@ jobs:
           echo BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true >> $BOARD_CONFIG
           echo TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true >> $BOARD_CONFIG
           echo ALLOW_MISSING_DEPENDENCIES := true >> $BOARD_CONFIG
-          echo Fixed BoardConfig.mk
-          cat $BOARD_CONFIG | grep -E "PRODUCT_USE_DYNAMIC_PARTITIONS|BOARD_SUPER_PARTITION|TARGET_SUPPORTS_64_BIT_APPS|BOARD_PREBUILT_DTBIMAGE_DIR|BOARD_INCLUDE_DTB_IN_BOOTIMG|BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT|BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT|BOARD_SYSTEMSDK_VERSIONS|PRODUCT_SHIPPING_API_LEVEL|TARGET_USES_PREBUILT_VENDOR_SEPOLICY|ALLOW_MISSING_DEPENDENCIES"
         fi
+        
+        # Fix device.mk
+        DEVICE_MK=${{ env.DEVICE_PATH }}/device.mk
+        if [ -f $DEVICE_MK ]; then
+          sed -i 's/^PRODUCT_SHIPPING_API_LEVEL.*/# &/' $DEVICE_MK
+        fi
+        
+        # Fix twrp_charoite.mk
+        TWRP_MK=${{ env.DEVICE_PATH }}/twrp_charoite.mk
+        if [ -f $TWRP_MK ]; then
+          sed -i 's/^PRODUCT_SHIPPING_API_LEVEL.*/# &/' $TWRP_MK
+        fi
+        
+        echo Fixed all config files
+        echo BoardConfig.mk:
+        cat $BOARD_CONFIG | grep -E "PRODUCT_USE_DYNAMIC_PARTITIONS|BOARD_SUPER_PARTITION|TARGET_SUPPORTS_64_BIT_APPS|BOARD_PREBUILT_DTBIMAGE_DIR|BOARD_INCLUDE_DTB_IN_BOOTIMG|BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT|BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT|BOARD_SYSTEMSDK_VERSIONS|PRODUCT_SHIPPING_API_LEVEL|TARGET_USES_PREBUILT_VENDOR_SEPOLICY|ALLOW_MISSING_DEPENDENCIES" || echo No matches
 
     - name: Setup build environment
       run: |
